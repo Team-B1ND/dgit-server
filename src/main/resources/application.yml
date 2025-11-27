@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: dgit-server
+
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+app:
+  oauth:
+    client-id: ${DAUTH_CLIENT_ID}
+    client-secret: ${DAUTH_CLIENT_SECRET}
+
+  jwt:
+    secret-key: ${JWT_SECRET_KEY}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
