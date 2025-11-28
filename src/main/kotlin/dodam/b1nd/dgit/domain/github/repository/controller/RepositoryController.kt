@@ -21,8 +21,7 @@ class RepositoryController(
 
     @Operation(
         summary = "레포지토리 등록",
-        description = "Github 레포지토리를 등록합니다. 관리자 승인 후 랭킹에 반영됩니다.",
-        security = [SecurityRequirement(name = "Bearer Authentication")]
+        description = "Github 레포지토리를 등록합니다. 관리자 승인 후 랭킹에 반영됩니다."
     )
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
     @PostMapping("/register")
@@ -39,8 +38,7 @@ class RepositoryController(
 
     @Operation(
         summary = "레포지토리 승인",
-        description = "등록된 레포지토리를 승인합니다. (관리자 전용)",
-        security = [SecurityRequirement(name = "Bearer Authentication")]
+        description = "등록된 레포지토리를 승인합니다. (관리자 전용)"
     )
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{repositoryId}/approve")

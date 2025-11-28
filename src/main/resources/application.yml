@@ -30,3 +30,10 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: alpha
     tags-sorter: alpha
+
+logging:
+  level:
+    root: INFO
+    dodam.b1nd.dgit: INFO
+    org.springframework.web: WARN
+    org.hibernate: WARN

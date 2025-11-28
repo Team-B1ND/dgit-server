@@ -3,6 +3,8 @@ package dodam.b1nd.dgit.global.client
 import dodam.b1nd.dgit.domain.github.stats.dto.external.GithubCommit
 import dodam.b1nd.dgit.domain.github.stats.dto.external.GithubRepository
 import dodam.b1nd.dgit.domain.github.stats.dto.external.GithubUser
+import dodam.b1nd.dgit.global.exception.CustomException
+import dodam.b1nd.dgit.global.exception.ErrorCode
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
@@ -29,7 +31,7 @@ class GithubClient(
             .uri("/users/$username")
             .retrieve()
             .bodyToMono<GithubUser>()
-            .block() ?: throw IllegalStateException("Github user not found")
+            .block() ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
     }
 
     /**

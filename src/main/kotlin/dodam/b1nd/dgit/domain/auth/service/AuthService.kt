@@ -28,32 +28,22 @@ class AuthService(
      */
     @Transactional
     fun login(request: LoginRequest): TokenResponse {
-        // 1. Code를 DAuth AccessToken으로 교환
         val dAuthAccessToken = dAuthClient.exchangeCodeForToken(request.code)
-
-        // 2. DAuth AccessToken으로 사용자 정보 조회
         val userInfo = dAuthClient.getUserInfo(dAuthAccessToken)
-
-        // 3. 사용자 DB 저장 (이메일 기준으로 중복 체크)
         val user = userService.saveOrUpdate(
             User(
                 email = userInfo.email,
                 name = userInfo.name,
-                role = Role.STUDENT  // 기본값
+                role = Role.STUDENT
             )
         )
 
-        // 4. DGIT 자체 JWT 토큰 생성
         return TokenResponse(
             accessToken = tokenService.generateAccessToken(user.email, user.role),
             refreshToken = tokenService.generateRefreshToken(user.email, user.role)
         )
     }
 
-    /**
-     * 토큰 갱신
-     * RefreshToken으로 새로운 AccessToken 발급
-     */
     fun refreshToken(email: String, role: Role): RefreshTokenResponse {
         return RefreshTokenResponse(
             accessToken = tokenService.generateAccessToken(email, role)

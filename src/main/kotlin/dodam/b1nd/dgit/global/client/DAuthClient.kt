@@ -2,6 +2,8 @@ package dodam.b1nd.dgit.global.client
 
 import dodam.b1nd.dgit.domain.auth.dto.external.*
 import dodam.b1nd.dgit.global.config.DAuthProperties
+import dodam.b1nd.dgit.global.exception.CustomException
+import dodam.b1nd.dgit.global.exception.ErrorCode
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.bodyToMono
@@ -36,7 +38,7 @@ class DAuthClient(
             .bodyValue(request)
             .retrieve()
             .bodyToMono<DAuthTokenResponse>()
-            .block() ?: throw IllegalStateException("DAuth 토큰 발급 실패")
+            .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
         return response.accessToken
     }
@@ -54,7 +56,7 @@ class DAuthClient(
             .header("Authorization", "Bearer $accessToken")
             .retrieve()
             .bodyToMono<OpenApiResponse>()
-            .block() ?: throw IllegalStateException("사용자 정보 조회 실패")
+            .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
         return response.data
     }
