@@ -22,10 +22,6 @@ class AuthController(
     private val jwtProvider: JwtProvider
 ) {
 
-    /**
-     * POST /auth/login
-     * DAuth Authorization Code로 로그인
-     */
     @Operation(summary = "로그인", description = "DAuth Authorization Code로 로그인")
     @PostMapping("/login")
     fun login(@Valid @RequestBody request: LoginRequest): ApiResponse<TokenResponse> {
@@ -37,19 +33,13 @@ class AuthController(
         )
     }
 
-    /**
-     * POST /auth/refresh
-     * RefreshToken으로 AccessToken 재발급
-     */
     @Operation(summary = "토큰 갱신", description = "RefreshToken으로 AccessToken 재발급")
     @PostMapping("/refresh")
     fun refresh(@Valid @RequestBody request: RefreshTokenRequest): ApiResponse<RefreshTokenResponse> {
-        // RefreshToken 검증 및 사용자 정보 추출
         val claims = jwtProvider.validateToken(request.refreshToken)
         val email = claims["email"] as String
         val role = Role.valueOf(claims["role"] as String)
 
-        // 토큰 타입 확인
         val tokenType = claims["type"] as String
         require(tokenType == "REFRESH") { "RefreshToken이 아닙니다" }
 

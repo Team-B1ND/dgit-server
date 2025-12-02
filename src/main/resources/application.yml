@@ -23,6 +23,9 @@ app:
   jwt:
     secret-key: ${JWT_SECRET_KEY}
 
+  github:
+    token: ${GITHUB_TOKEN}
+
 springdoc:
   api-docs:
     path: /v3/api-docs

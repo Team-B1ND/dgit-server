@@ -3,6 +3,7 @@ package dodam.b1nd.dgit.global.client
 import dodam.b1nd.dgit.domain.github.stats.dto.external.GithubCommit
 import dodam.b1nd.dgit.domain.github.stats.dto.external.GithubRepository
 import dodam.b1nd.dgit.domain.github.stats.dto.external.GithubUser
+import dodam.b1nd.dgit.global.config.GithubProperties
 import dodam.b1nd.dgit.global.exception.CustomException
 import dodam.b1nd.dgit.global.exception.ErrorCode
 import org.springframework.core.ParameterizedTypeReference
@@ -14,7 +15,8 @@ import java.time.format.DateTimeFormatter
 
 @Component
 class GithubClient(
-    private val webClientBuilder: WebClient.Builder
+    private val webClientBuilder: WebClient.Builder,
+    private val githubProperties: GithubProperties
 ) {
 
     companion object {
@@ -29,6 +31,7 @@ class GithubClient(
 
         return webClient.get()
             .uri("/users/$username")
+            .header("Authorization", "token ${githubProperties.token}")
             .retrieve()
             .bodyToMono<GithubUser>()
             .block() ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
@@ -56,6 +59,7 @@ class GithubClient(
                         .queryParam("page", page)
                         .build()
                 }
+                .header("Authorization", "token ${githubProperties.token}")
                 .retrieve()
                 .bodyToMono(object : ParameterizedTypeReference<List<GithubRepository>>() {})
                 .block() ?: emptyList()
@@ -100,6 +104,7 @@ class GithubClient(
 
                     builder.build()
                 }
+                .header("Authorization", "token ${githubProperties.token}")
                 .retrieve()
                 .bodyToMono(object : ParameterizedTypeReference<List<GithubCommit>>() {})
                 .block() ?: emptyList()
