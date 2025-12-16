@@ -27,17 +27,22 @@ class JwtAuthenticationFilter(
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
-        val authHeader = request.getHeader(HttpHeaders.AUTHORIZATION)
+        try {
+            val authHeader = request.getHeader(HttpHeaders.AUTHORIZATION)
 
-        if (authHeader != null && authHeader.startsWith(TOKEN_TYPE)) {
-            val token = authHeader.removePrefix(TOKEN_TYPE)
-            val claims = jwtProvider.validateToken(token)
-            val email = claims["email"] as String
-            val user = userService.getUserByEmail(email)
+            if (authHeader != null && authHeader.startsWith(TOKEN_TYPE)) {
+                val token = authHeader.removePrefix(TOKEN_TYPE)
+                val claims = jwtProvider.validateToken(token)
+                val email = claims["email"] as String
+                val user = userService.getUserByEmail(email)
 
-            val authorities = listOf(SimpleGrantedAuthority("ROLE_${user.role.name}"))
-            val authentication = UsernamePasswordAuthenticationToken(user, null, authorities)
-            SecurityContextHolder.getContext().authentication = authentication
+                val authorities = listOf(SimpleGrantedAuthority("ROLE_${user.role.name}"))
+                val authentication = UsernamePasswordAuthenticationToken(user, null, authorities)
+                authentication.details = WebAuthenticationDetailsSource().buildDetails(request)
+                SecurityContextHolder.getContext().authentication = authentication
+            }
+        } catch (_: Exception) {
+            // 토큰 검증 실패 시 인증 없이 진행 (Spring Security가 처리)
         }
 
         filterChain.doFilter(request, response)

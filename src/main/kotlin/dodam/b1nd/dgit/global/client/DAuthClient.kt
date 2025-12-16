@@ -19,9 +19,9 @@ class DAuthClient(
     }
 
     /**
-     * Authorization Code를 DAuth AccessToken으로 교환
+     * Authorization Code를 DAuth Token으로 교환
      */
-    fun exchangeCodeForToken(code: String): String {
+    fun exchangeCodeForToken(code: String): DAuthTokenResponse {
         val webClient = webClientBuilder
             .baseUrl(DAUTH_BASE_URL)
             .build()
@@ -38,7 +38,7 @@ class DAuthClient(
             .bodyToMono<BasicResponse<DAuthTokenResponse>>()
             .block()?.data ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
-        return response.accessToken
+        return response
     }
 
     /**

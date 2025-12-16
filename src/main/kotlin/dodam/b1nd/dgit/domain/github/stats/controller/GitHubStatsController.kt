@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "Github Stats", description = "Github 통계 API")
 @RestController
 @RequestMapping("/stats")
-class GithubStatsController(
+class GitHubStatsController(
     private val githubStatsService: GithubStatsService
 ) {
 

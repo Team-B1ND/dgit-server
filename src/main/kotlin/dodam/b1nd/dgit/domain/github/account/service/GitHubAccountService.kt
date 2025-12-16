@@ -4,6 +4,7 @@ import dodam.b1nd.dgit.domain.github.account.dto.request.RegisterGithubAccountRe
 import dodam.b1nd.dgit.domain.github.account.dto.response.GithubAccountResponse
 import dodam.b1nd.dgit.domain.github.account.entity.GithubAccount
 import dodam.b1nd.dgit.domain.github.account.repository.GithubAccountRepository
+import dodam.b1nd.dgit.domain.github.stats.service.GithubStatsService
 import dodam.b1nd.dgit.domain.user.entity.User
 import dodam.b1nd.dgit.global.exception.CustomException
 import dodam.b1nd.dgit.global.exception.ErrorCode
@@ -13,7 +14,8 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional(readOnly = true)
 class GitHubAccountService(
-    private val githubAccountRepository: GithubAccountRepository
+    private val githubAccountRepository: GithubAccountRepository,
+    private val githubStatsService: GithubStatsService
 ) {
 
     /**
@@ -34,6 +36,17 @@ class GitHubAccountService(
         )
 
         val savedAccount = githubAccountRepository.save(githubAccount)
+
+        // 계정 등록 즉시 GitHub 데이터 수집
+        try {
+            githubStatsService.updateSingleUserStats(savedAccount)
+        } catch (e: Exception) {
+            // 데이터 수집 실패해도 계정 등록은 성공으로 처리
+            // 스케줄러가 나중에 다시 시도함
+            println("GitHub 데이터 수집 실패: ${e.message}")
+            e.printStackTrace()
+        }
+
         return GithubAccountResponse.from(savedAccount)
     }
 

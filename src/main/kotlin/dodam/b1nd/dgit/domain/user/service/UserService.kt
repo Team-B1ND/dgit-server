@@ -15,13 +15,18 @@ class UserService(
 
     /**
      * 이메일로 사용자 저장 또는 업데이트
-     * - 기존 사용자가 있으면 반환 (업데이트하지 않음)
+     * - 기존 사용자가 있으면 dodamRefreshToken 업데이트
      * - 없으면 새로 생성
      */
     @Transactional
     fun saveOrUpdate(user: User): User {
-        return userRepository.findByEmail(user.email)
-            ?: userRepository.save(user)
+        val existingUser = userRepository.findByEmail(user.email)
+        return if (existingUser != null) {
+            existingUser.dodamRefreshToken = user.dodamRefreshToken
+            userRepository.save(existingUser)
+        } else {
+            userRepository.save(user)
+        }
     }
 
     /**

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.bodyToMono
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 @Component
@@ -73,8 +74,112 @@ class GithubClient(
     }
 
     /**
-     * 특정 리포지토리의 커밋 조회 (특정 author, since 날짜 이후)
+     * GraphQL로 커밋 날짜만 조회 (응답 크기 99% 감소)
      */
+    fun getCommitDates(
+        owner: String,
+        repo: String,
+        author: String
+    ): List<LocalDate> {
+        val webClient = webClientBuilder
+            .baseUrl(GITHUB_API_BASE_URL)
+            .build()
+
+        val allDates = mutableListOf<LocalDate>()
+        var hasNextPage = true
+        var endCursor: String? = null
+
+        while (hasNextPage) {
+            val query = buildGraphQLQuery(owner, repo, author, endCursor)
+            val requestBody = mapOf("query" to query)
+
+            val response = webClient.post()
+                .uri("/graphql")
+                .header("Authorization", "Bearer ${githubProperties.token}")
+                .header("Content-Type", "application/json")
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono<Map<String, Any>>()
+                .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
+
+            val dates = parseGraphQLResponse(response)
+            allDates.addAll(dates)
+
+            val pageInfo = extractPageInfo(response)
+            hasNextPage = pageInfo["hasNextPage"] as? Boolean ?: false
+            endCursor = pageInfo["endCursor"] as? String
+        }
+
+        return allDates
+    }
+
+    private fun buildGraphQLQuery(owner: String, repo: String, author: String, cursor: String?): String {
+        val afterClause = if (cursor != null) """, after: "$cursor"""" else ""
+        return """
+            {
+              repository(owner: "$owner", name: "$repo") {
+                defaultBranchRef {
+                  target {
+                    ... on Commit {
+                      history(first: 100, author: { id: "$author" }$afterClause) {
+                        pageInfo {
+                          hasNextPage
+                          endCursor
+                        }
+                        nodes {
+                          committedDate
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+    }
+
+    private fun parseGraphQLResponse(response: Map<String, Any>): List<LocalDate> {
+        try {
+            val data = response["data"] as? Map<*, *> ?: return emptyList()
+            val repository = data["repository"] as? Map<*, *> ?: return emptyList()
+            val defaultBranchRef = repository["defaultBranchRef"] as? Map<*, *> ?: return emptyList()
+            val target = defaultBranchRef["target"] as? Map<*, *> ?: return emptyList()
+            val history = target["history"] as? Map<*, *> ?: return emptyList()
+            val nodes = history["nodes"] as? List<*> ?: return emptyList()
+
+            return nodes.mapNotNull { node ->
+                val nodeMap = node as? Map<*, *>
+                val dateString = nodeMap?.get("committedDate") as? String
+                dateString?.let {
+                    LocalDateTime.parse(it, DateTimeFormatter.ISO_DATE_TIME).toLocalDate()
+                }
+            }
+        } catch (e: Exception) {
+            println("GraphQL 응답 파싱 실패: ${e.message}")
+            return emptyList()
+        }
+    }
+
+    private fun extractPageInfo(response: Map<String, Any>): Map<String, Any> {
+        try {
+            val data = response["data"] as? Map<*, *> ?: return emptyMap()
+            val repository = data["repository"] as? Map<*, *> ?: return emptyMap()
+            val defaultBranchRef = repository["defaultBranchRef"] as? Map<*, *> ?: return emptyMap()
+            val target = defaultBranchRef["target"] as? Map<*, *> ?: return emptyMap()
+            val history = target["history"] as? Map<*, *> ?: return emptyMap()
+            val pageInfo = history["pageInfo"] as? Map<*, *> ?: return emptyMap()
+
+            return pageInfo.mapKeys { it.key.toString() }.mapValues { it.value ?: false }
+        } catch (e: Exception) {
+            return emptyMap()
+        }
+    }
+
+    /**
+     * 특정 리포지토리의 커밋 조회 (특정 author, since 날짜 이후)
+     * @deprecated GraphQL 버전(getCommitDates)을 사용하세요
+     */
+    @Deprecated("Use getCommitDates instead", ReplaceWith("getCommitDates(owner, repo, author)"))
     fun getRepositoryCommits(
         owner: String,
         repo: String,

@@ -68,20 +68,14 @@ class GithubStatsService(
 
             val allCommitDates = mutableListOf<LocalDate>()
 
+            // GraphQL 사용: 날짜만 가져옴 (응답 크기 99% 감소)
             for (repo in repositories) {
-                val commits = githubClient.getRepositoryCommits(
+                val commitDates = githubClient.getCommitDates(
                     owner = username,
                     repo = repo.name,
                     author = username
                 )
-
-                commits.forEach { commit ->
-                    val commitDate = LocalDateTime.parse(
-                        commit.commit.author.date,
-                        DateTimeFormatter.ISO_DATE_TIME
-                    ).toLocalDate()
-                    allCommitDates.add(commitDate)
-                }
+                allCommitDates.addAll(commitDates)
             }
 
             val sortedDates = allCommitDates.sorted()
@@ -98,7 +92,9 @@ class GithubStatsService(
             stats.longestStreak = streaks.first
             stats.currentStreak = streaks.second
 
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            println("GitHub 통계 수집 중 에러 발생: ${e.message}")
+            e.printStackTrace()
             throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
         }
     }

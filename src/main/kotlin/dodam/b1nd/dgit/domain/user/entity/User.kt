@@ -19,5 +19,11 @@ data class User(
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    val role: Role = Role.STUDENT
+    val role: Role = Role.STUDENT,
+
+    @Column(nullable = false, unique = true)
+    val dodamId: String,
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    var dodamRefreshToken: String
 )
