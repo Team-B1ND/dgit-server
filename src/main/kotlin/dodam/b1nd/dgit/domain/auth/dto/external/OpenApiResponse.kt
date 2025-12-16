@@ -1,15 +1,17 @@
 package dodam.b1nd.dgit.domain.auth.dto.external
 
+import dodam.b1nd.dgit.domain.user.enums.Role
+
 data class OpenApiResponse(
     val message: String,
     val data: UserInfo
 )
 
 data class UserInfo(
-    val grade: Int,
-    val room: Int,
-    val number: Int,
+    val sub: String,
     val name: String,
-    val profileImage: String,
-    val email: String
+    val role: Role,
+    val profileImage: String? = null,
+    val email: String,
+    val phone: String? = null
 )

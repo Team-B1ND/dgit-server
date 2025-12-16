@@ -16,7 +16,7 @@ class RankingController(
 ) {
 
     @Operation(summary = "사용자 통합 랭킹 조회", description = "레벨 + 커밋 수 기준 랭킹")
-    @GetMapping("/user/total")
+    @GetMapping("/total")
     fun getUserTotalRanking(): ApiResponse<List<UserTotalRankingResponse>> {
         val ranking = rankingService.getUserTotalRanking()
         return ApiResponse.success(
@@ -27,7 +27,7 @@ class RankingController(
     }
 
     @Operation(summary = "사용자 커밋 랭킹 조회", description = "커밋 수 기준 랭킹")
-    @GetMapping("/user/commit")
+    @GetMapping("/commit")
     fun getUserCommitRanking(): ApiResponse<List<UserCommitRankingResponse>> {
         val ranking = rankingService.getUserCommitRanking()
         return ApiResponse.success(

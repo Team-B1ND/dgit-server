@@ -15,8 +15,7 @@ class DAuthClient(
 ) {
 
     companion object {
-        private const val DAUTH_BASE_URL = "https://dauth.b1nd.com/api"
-        private const val OPENAPI_BASE_URL = "https://opendodam.b1nd.com/api"
+        private const val DAUTH_BASE_URL = "https://dauthapi.b1nd.com"
     }
 
     /**
@@ -29,16 +28,15 @@ class DAuthClient(
 
         val request = DAuthTokenRequest(
             code = code,
-            client_id = dAuthProperties.clientId,
-            client_secret = dAuthProperties.clientSecret
+            clientSecret = dAuthProperties.clientSecret
         )
 
         val response = webClient.post()
-            .uri("/token")
+            .uri("/oauth/token")
             .bodyValue(request)
             .retrieve()
-            .bodyToMono<DAuthTokenResponse>()
-            .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
+            .bodyToMono<BasicResponse<DAuthTokenResponse>>()
+            .block()?.data ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
         return response.accessToken
     }
@@ -48,16 +46,18 @@ class DAuthClient(
      */
     fun getUserInfo(accessToken: String): UserInfo {
         val webClient = webClientBuilder
-            .baseUrl(OPENAPI_BASE_URL)
+            .baseUrl(DAUTH_BASE_URL)
             .build()
 
+        println("asdsadasdsadasd: " + accessToken)
+
         val response = webClient.get()
-            .uri("/user")
+            .uri("/oauth/userinfo")
             .header("Authorization", "Bearer $accessToken")
             .retrieve()
-            .bodyToMono<OpenApiResponse>()
-            .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
+            .bodyToMono< BasicResponse<UserInfo>>()
+            .block()?.data ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
-        return response.data
+        return response
     }
 }

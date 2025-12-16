@@ -34,7 +34,7 @@ class AuthService(
             User(
                 email = userInfo.email,
                 name = userInfo.name,
-                role = Role.STUDENT
+                role = userInfo.role
             )
         )
 

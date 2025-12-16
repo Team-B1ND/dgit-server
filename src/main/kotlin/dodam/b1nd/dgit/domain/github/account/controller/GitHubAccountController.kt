@@ -2,9 +2,9 @@ package dodam.b1nd.dgit.domain.github.account.controller
 
 import dodam.b1nd.dgit.domain.github.account.dto.request.RegisterGithubAccountRequest
 import dodam.b1nd.dgit.domain.github.account.dto.response.GithubAccountResponse
-import dodam.b1nd.dgit.domain.github.account.service.GithubAccountService
+import dodam.b1nd.dgit.domain.github.account.service.GitHubAccountService
 import dodam.b1nd.dgit.global.response.ApiResponse
-import dodam.b1nd.dgit.global.security.JwtProvider
+import dodam.b1nd.dgit.global.security.UserAuthenticationHolder
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -16,15 +16,10 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "Github Account", description = "Github 계정 관리 API")
 @RestController
 @RequestMapping("/github")
-class GithubAccountController(
-    private val githubAccountService: GithubAccountService,
-    private val jwtProvider: JwtProvider
+class GitHubAccountController(
+    private val githubAccountService: GitHubAccountService
 ) {
 
-    /**
-     * POST /github/register
-     * Github 계정 등록
-     */
     @Operation(
         summary = "Github 계정 등록",
         description = "Github 아이디로 계정을 등록합니다. 이미 등록된 경우 에러를 반환합니다.",
@@ -33,13 +28,10 @@ class GithubAccountController(
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
     @PostMapping("/register")
     fun registerGithubAccount(
-        @RequestHeader("Authorization") authorization: String,
         @Valid @RequestBody request: RegisterGithubAccountRequest
     ): ApiResponse<GithubAccountResponse> {
-        val token = authorization.substring(7) // "Bearer " 제거
-        val email = jwtProvider.getEmailFromToken(token)
-
-        val response = githubAccountService.registerGithubAccount(email, request)
+        val user = UserAuthenticationHolder.current()
+        val response = githubAccountService.registerGithubAccount(user, request)
 
         return ApiResponse.success(
             status = HttpStatus.CREATED,
@@ -55,13 +47,9 @@ class GithubAccountController(
     )
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
     @GetMapping("/me")
-    fun getMyGithubAccounts(
-        @RequestHeader("Authorization") authorization: String
-    ): ApiResponse<List<GithubAccountResponse>> {
-        val token = authorization.substring(7)
-        val email = jwtProvider.getEmailFromToken(token)
-
-        val response = githubAccountService.getMyGithubAccounts(email)
+    fun getMyGithubAccounts(): ApiResponse<List<GithubAccountResponse>> {
+        val user = UserAuthenticationHolder.current()
+        val response = githubAccountService.getMyGithubAccounts(user)
 
         return ApiResponse.success(
             status = HttpStatus.OK,

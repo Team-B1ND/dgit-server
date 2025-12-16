@@ -23,9 +23,6 @@ class JwtProvider(
         jwtProperties.secretKey.toByteArray(StandardCharsets.UTF_8)
     )
 
-    /**
-     * JWT 토큰 생성
-     */
     fun generateToken(
         email: String,
         role: Role,
@@ -49,9 +46,6 @@ class JwtProvider(
             .compact()
     }
 
-    /**
-     * JWT 토큰 검증 및 Claims 추출
-     */
     fun validateToken(token: String): Claims {
         try {
             return Jwts.parser()
@@ -70,9 +64,6 @@ class JwtProvider(
         }
     }
 
-    /**
-     * JWT에서 이메일 추출
-     */
     fun getEmailFromToken(token: String): String {
         val claims = validateToken(token)
         return claims["email"] as String
