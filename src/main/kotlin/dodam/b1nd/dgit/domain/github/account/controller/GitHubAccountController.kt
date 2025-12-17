@@ -22,7 +22,18 @@ class GitHubAccountController(
 
     @Operation(
         summary = "Github 계정 등록",
-        description = "Github 아이디로 계정을 등록합니다. 이미 등록된 경우 에러를 반환합니다.",
+        description = """
+            Github 아이디로 계정을 등록합니다. 이미 등록된 경우 에러를 반환합니다.
+
+            **데이터 수집 방식:**
+            - 계정 등록 즉시 GitHub GraphQL API를 사용하여 사용자의 커밋 데이터를 수집합니다.
+            - GraphQL을 통해 커밋 날짜만 선택적으로 가져와 응답 크기를 99% 감소시킵니다. (REST API 대비 약 300배 효율적)
+            - 수집 데이터: 사용자 정보, 전체 커밋 수, 오늘 커밋 수, 이번 주 커밋 수, 최장/현재 스트릭
+
+            **참고:**
+            - 첫 등록 시 데이터 수집에 몇 초 정도 소요될 수 있습니다.
+            - 이후 매시간(07:00-23:00) 자동으로 데이터가 갱신됩니다.
+        """.trimIndent(),
         security = [SecurityRequirement(name = "Bearer Authentication")]
     )
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")

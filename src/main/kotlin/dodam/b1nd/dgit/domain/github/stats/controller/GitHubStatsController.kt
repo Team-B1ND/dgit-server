@@ -19,7 +19,23 @@ class GitHubStatsController(
 
     @Operation(
         summary = "Github 계정 통계 조회",
-        description = "특정 Github 계정의 통계를 조회합니다. 매시간 정각에 일괄 업데이트된 캐시 데이터를 반환합니다.",
+        description = """
+            특정 Github 계정의 통계를 조회합니다.
+
+            **조회 가능한 통계:**
+            - 전체 커밋 수 (totalCommits)
+            - 오늘 커밋 수 (todayCommits)
+            - 이번 주 커밋 수 (weekCommits)
+            - 레포지토리 개수 (repositoryCount)
+            - 최장 스트릭 (longestStreak)
+            - 현재 스트릭 (currentStreak)
+            - 커밋 랭킹 (ranking)
+
+            **데이터 갱신:**
+            - GraphQL API를 통해 커밋 날짜만 수집하여 효율적으로 처리
+            - 매시간(07:00-23:00) 자동으로 데이터가 갱신됩니다.
+            - 최신 데이터가 아닐 수 있으니, 실시간 반영이 필요한 경우 대기 후 재조회해주세요.
+        """.trimIndent(),
         security = [SecurityRequirement(name = "Bearer Authentication")]
     )
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
