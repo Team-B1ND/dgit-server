@@ -20,13 +20,8 @@ class JwtProvider(
 ) {
 
     private val secretKey = Keys.hmacShaKeyFor(
-        jwtProperties.secretKey.hexToBytes()
+        jwtProperties.secretKey.toByteArray(StandardCharsets.UTF_8)
     )
-
-    private fun String.hexToBytes(): ByteArray =
-        chunked(2)
-            .map { it.toInt(16).toByte() }
-            .toByteArray()
 
     fun generateToken(
         email: String,
@@ -70,6 +65,7 @@ class JwtProvider(
     }
 
     fun getEmailFromToken(token: String): String {
-        return validateToken(token)["email"] as String
+        val claims = validateToken(token)
+        return claims["email"] as String
     }
 }
