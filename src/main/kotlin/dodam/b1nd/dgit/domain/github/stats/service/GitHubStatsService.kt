@@ -68,14 +68,20 @@ class GithubStatsService(
 
             val allCommitDates = mutableListOf<LocalDate>()
 
-            // GraphQL 사용: 날짜만 가져옴 (응답 크기 99% 감소)
+            // REST API 사용: 전체 커밋 정보를 가져옴
             for (repo in repositories) {
-                val commitDates = githubClient.getCommitDates(
+                val commits = githubClient.getRepositoryCommits(
                     owner = username,
                     repo = repo.name,
                     author = username
                 )
-                allCommitDates.addAll(commitDates)
+                commits.forEach { commit ->
+                    val commitDate = LocalDateTime.parse(
+                        commit.commit.author.date,
+                        DateTimeFormatter.ISO_DATE_TIME
+                    ).toLocalDate()
+                    allCommitDates.add(commitDate)
+                }
             }
 
             val sortedDates = allCommitDates.sorted()
