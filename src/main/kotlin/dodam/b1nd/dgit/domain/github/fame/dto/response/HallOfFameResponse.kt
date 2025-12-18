@@ -8,7 +8,7 @@ data class HallOfFameResponse(
     @Schema(description = "등수", example = "1")
     val rank: Int,
 
-    @Schema(description = "시작 기간 (월요일)", example = "2025-01-13")
+    @Schema(description = "주간 시작일 (일요일)", example = "2025-01-12")
     val weekStart: LocalDate,
 
     @Schema(description = "주간 커밋 수", example = "150")
@@ -18,7 +18,7 @@ data class HallOfFameResponse(
     val avatarUrl: String?,
 
     @Schema(description = "Github 아이디", example = "octocat")
-    val username: String,
+    val githubName: String,
 
     @Schema(description = "Github 사용자 이름", example = "The Octocat")
     val name: String?,
