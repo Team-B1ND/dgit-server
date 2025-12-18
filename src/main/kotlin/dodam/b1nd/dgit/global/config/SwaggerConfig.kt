@@ -5,6 +5,7 @@ import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.info.Info
 import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
+import io.swagger.v3.oas.models.servers.Server
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -28,6 +29,16 @@ class SwaggerConfig {
                             "- 사용자/레포지토리 랭킹 조회\n" +
                             "- 명예의 전당")
                     .version("v1.0.0")
+            )
+            .servers(
+                listOf(
+                    Server()
+                        .url("https://dgitapi.b1nd.com")
+                        .description("Production server"),
+                    Server()
+                        .url("http://localhost:8080")
+                        .description("Local server")
+                )
             )
             .components(
                 Components()
