@@ -34,10 +34,10 @@ class SwaggerConfig {
                 listOf(
                     Server()
                         .url("https://dgitapi.b1nd.com")
-                        .description("Production server"),
+                        .description("Production"),
                     Server()
                         .url("http://localhost:8080")
-                        .description("Local server")
+                        .description("Local")
                 )
             )
             .components(
