@@ -26,6 +26,10 @@ app:
   github:
     token: ${GITHUB_TOKEN}
 
+swagger:
+  username: ${SWAGGER_USERNAME}
+  password: ${SWAGGER_PASSWORD}
+
 springdoc:
   api-docs:
     path: /v3/api-docs
