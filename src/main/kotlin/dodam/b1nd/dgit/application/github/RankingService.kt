@@ -1,8 +1,8 @@
 package dodam.b1nd.dgit.application.github
 
-import dodam.b1nd.dgit.presentation.github.dto.response.*
 import dodam.b1nd.dgit.domain.github.repository.repository.RepositoryRepository
 import dodam.b1nd.dgit.domain.github.stats.repository.GithubStatsRepository
+import dodam.b1nd.dgit.presentation.github.dto.response.*
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 

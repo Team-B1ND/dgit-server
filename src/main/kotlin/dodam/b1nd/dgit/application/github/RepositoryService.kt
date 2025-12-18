@@ -1,8 +1,6 @@
 package dodam.b1nd.dgit.application.github
 
 import dodam.b1nd.dgit.domain.github.account.repository.GithubAccountRepository
-import dodam.b1nd.dgit.presentation.github.dto.request.RegisterRepositoryRequest
-import dodam.b1nd.dgit.presentation.github.dto.response.RepositoryResponse
 import dodam.b1nd.dgit.domain.github.repository.entity.Repository
 import dodam.b1nd.dgit.domain.github.repository.repository.RepositoryRepository
 import dodam.b1nd.dgit.infrastructure.client.GithubClient
@@ -20,41 +18,40 @@ class RepositoryService(
 ) {
 
     @Transactional
-    fun registerRepository(request: RegisterRepositoryRequest): RepositoryResponse {
-        val githubAccount = githubAccountRepository.findById(request.githubAccountId).orElseThrow {
+    fun register(githubAccountId: Long, owner: String, repoName: String): Repository {
+        val githubAccount = githubAccountRepository.findById(githubAccountId).orElseThrow {
             CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
         }
 
-        if (repositoryRepository.existsByOwnerAndRepoName(request.owner, request.repoName)) {
+        if (repositoryRepository.existsByOwnerAndRepoName(owner, repoName)) {
             throw CustomException(ErrorCode.REPOSITORY_ALREADY_EXISTS)
         }
 
-        val userInfo = githubClient.getUser(request.owner)
+        val userInfo = githubClient.getUser(owner)
 
         val repository = Repository(
             githubAccount = githubAccount,
-            owner = request.owner,
-            repoName = request.repoName,
+            owner = owner,
+            repoName = repoName,
             ownerAvatarUrl = userInfo.avatarUrl
         )
 
-        val saved = repositoryRepository.save(repository)
-        return RepositoryResponse.from(saved)
+        return repositoryRepository.save(repository)
     }
 
     @Transactional
-    fun approveRepository(repositoryId: Long): RepositoryResponse {
+    fun approve(repositoryId: Long): Repository {
         val repository = repositoryRepository.findById(repositoryId).orElseThrow {
             CustomException(ErrorCode.REPOSITORY_NOT_FOUND)
         }
 
         repository.isApproved = true
-        updateRepositoryStats(repository)
+        updateStats(repository)
 
-        return RepositoryResponse.from(repository)
+        return repository
     }
 
-    private fun updateRepositoryStats(repository: Repository) {
+    private fun updateStats(repository: Repository) {
         try {
             val commits = githubClient.getRepositoryCommits(
                 owner = repository.owner,

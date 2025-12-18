@@ -4,7 +4,6 @@ import dodam.b1nd.dgit.domain.github.account.repository.GithubAccountRepository
 import dodam.b1nd.dgit.domain.github.fame.entity.WeeklyRecord
 import dodam.b1nd.dgit.domain.github.fame.repository.WeeklyRecordRepository
 import dodam.b1nd.dgit.infrastructure.client.GithubClient
-import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.DayOfWeek
@@ -13,13 +12,13 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 @Service
+@Transactional(readOnly = true)
 class WeeklyRecordService(
     private val weeklyRecordRepository: WeeklyRecordRepository,
     private val githubAccountRepository: GithubAccountRepository,
     private val githubClient: GithubClient
 ) {
 
-    @Scheduled(cron = "0 0 0 * * MON")
     @Transactional
     fun saveLastWeekRecords() {
         val lastWeekStart = LocalDate.now().minusWeeks(1).with(DayOfWeek.MONDAY)

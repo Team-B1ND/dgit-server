@@ -1,11 +1,11 @@
 package dodam.b1nd.dgit.presentation.github.controller
 
+import dodam.b1nd.dgit.application.github.usecase.GitHubAccountUseCase
+import dodam.b1nd.dgit.infrastructure.security.UserAuthenticationHolder
+import dodam.b1nd.dgit.presentation.common.ApiResponse
 import dodam.b1nd.dgit.presentation.github.controller.docs.GitHubAccountControllerDocs
 import dodam.b1nd.dgit.presentation.github.dto.request.RegisterGithubAccountRequest
 import dodam.b1nd.dgit.presentation.github.dto.response.GithubAccountResponse
-import dodam.b1nd.dgit.application.github.GitHubAccountService
-import dodam.b1nd.dgit.presentation.common.ApiResponse
-import dodam.b1nd.dgit.infrastructure.security.UserAuthenticationHolder
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/github")
 class GitHubAccountController(
-    private val githubAccountService: GitHubAccountService
+    private val gitHubAccountUseCase: GitHubAccountUseCase
 ) : GitHubAccountControllerDocs {
 
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
@@ -23,7 +23,7 @@ class GitHubAccountController(
         @Valid @RequestBody request: RegisterGithubAccountRequest
     ): ApiResponse<GithubAccountResponse> {
         val user = UserAuthenticationHolder.current()
-        val response = githubAccountService.registerGithubAccount(user, request)
+        val response = gitHubAccountUseCase.registerGithubAccount(user, request)
 
         return ApiResponse.success(
             status = HttpStatus.CREATED,
@@ -36,7 +36,7 @@ class GitHubAccountController(
     @GetMapping("/me")
     override fun getMyGithubAccounts(): ApiResponse<List<GithubAccountResponse>> {
         val user = UserAuthenticationHolder.current()
-        val response = githubAccountService.getMyGithubAccounts(user)
+        val response = gitHubAccountUseCase.getMyGithubAccounts(user)
 
         return ApiResponse.success(
             status = HttpStatus.OK,

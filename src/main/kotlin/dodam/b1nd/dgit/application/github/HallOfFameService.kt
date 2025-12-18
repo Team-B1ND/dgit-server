@@ -1,9 +1,9 @@
 package dodam.b1nd.dgit.application.github
 
-import dodam.b1nd.dgit.presentation.github.dto.response.FirstPlaceRankingResponse
-import dodam.b1nd.dgit.presentation.github.dto.response.HallOfFameResponse
 import dodam.b1nd.dgit.domain.github.fame.repository.WeeklyRecordRepository
 import dodam.b1nd.dgit.presentation.common.PageResponse
+import dodam.b1nd.dgit.presentation.github.dto.response.FirstPlaceRankingResponse
+import dodam.b1nd.dgit.presentation.github.dto.response.HallOfFameResponse
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional

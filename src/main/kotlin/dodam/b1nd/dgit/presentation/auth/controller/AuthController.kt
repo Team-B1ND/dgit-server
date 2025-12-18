@@ -1,14 +1,14 @@
 package dodam.b1nd.dgit.presentation.auth.controller
 
+import dodam.b1nd.dgit.application.auth.usecase.AuthUseCase
+import dodam.b1nd.dgit.domain.user.enums.Role
+import dodam.b1nd.dgit.infrastructure.security.JwtProvider
 import dodam.b1nd.dgit.presentation.auth.controller.docs.AuthControllerDocs
 import dodam.b1nd.dgit.presentation.auth.dto.request.LoginRequest
 import dodam.b1nd.dgit.presentation.auth.dto.request.RefreshTokenRequest
 import dodam.b1nd.dgit.presentation.auth.dto.response.RefreshTokenResponse
 import dodam.b1nd.dgit.presentation.auth.dto.response.TokenResponse
-import dodam.b1nd.dgit.application.auth.AuthService
-import dodam.b1nd.dgit.domain.user.enums.Role
 import dodam.b1nd.dgit.presentation.common.ApiResponse
-import dodam.b1nd.dgit.infrastructure.security.JwtProvider
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -16,13 +16,13 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/auth")
 class AuthController(
-    private val authService: AuthService,
+    private val authUseCase: AuthUseCase,
     private val jwtProvider: JwtProvider
 ) : AuthControllerDocs {
 
     @PostMapping("/login")
     override fun login(@Valid @RequestBody request: LoginRequest): ApiResponse<TokenResponse> {
-        val tokenResponse = authService.login(request)
+        val tokenResponse = authUseCase.login(request)
         return ApiResponse.success(
             status = HttpStatus.OK,
             message = "로그인 성공",
@@ -39,7 +39,7 @@ class AuthController(
         val tokenType = claims["type"] as String
         require(tokenType == "REFRESH") { "RefreshToken이 아닙니다" }
 
-        val response = authService.refreshToken(email, role)
+        val response = authUseCase.refreshToken(email, role)
         return ApiResponse.success(
             status = HttpStatus.OK,
             message = "토큰 갱신 성공",
