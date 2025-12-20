@@ -9,9 +9,12 @@ data class BasicResponse<T>(
     val data: T?
 )
 
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy::class)
 data class DAuthTokenResponse(
     val accessToken: String,
     val refreshToken: String,
-    val idToken: String,
-    val tokenType: String
+    val idToken: String? = null,
+    val tokenType: String,
+    val expiresIn: Long? = null,
+    val scope: String? = null
 )

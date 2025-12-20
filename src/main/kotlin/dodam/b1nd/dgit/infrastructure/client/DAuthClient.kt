@@ -4,7 +4,10 @@ import dodam.b1nd.dgit.presentation.auth.dto.external.*
 import dodam.b1nd.dgit.infrastructure.config.DAuthProperties
 import dodam.b1nd.dgit.infrastructure.exception.CustomException
 import dodam.b1nd.dgit.infrastructure.exception.ErrorCode
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
+import org.springframework.util.LinkedMultiValueMap
+import org.springframework.web.reactive.function.BodyInserters
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.bodyToMono
 
@@ -18,46 +21,52 @@ class DAuthClient(
         private const val DAUTH_BASE_URL = "https://dauthapi.b1nd.com"
     }
 
-    /**
-     * Authorization Code를 DAuth Token으로 교환
-     */
-    fun exchangeCodeForToken(code: String): DAuthTokenResponse {
+    fun exchangeCodeForToken(code: String, redirectUri: String = ""): DAuthTokenResponse {
         val webClient = webClientBuilder
             .baseUrl(DAUTH_BASE_URL)
             .build()
 
-        val request = DAuthTokenRequest(
-            code = code,
-            clientSecret = dAuthProperties.clientSecret
-        )
+        val formData = LinkedMultiValueMap<String, String>()
+        formData.add("grant_type", "authorization_code")
+        formData.add("code", code)
+        formData.add("client_id", dAuthProperties.clientId)
+        formData.add("client_secret", dAuthProperties.clientSecret)
+        if (redirectUri.isNotEmpty()) {
+            formData.add("redirect_uri", redirectUri)
+        }
 
         val response = webClient.post()
             .uri("/oauth/token")
-            .bodyValue(request)
+            .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+            .body(BodyInserters.fromFormData(formData))
             .retrieve()
-            .bodyToMono<BasicResponse<DAuthTokenResponse>>()
-            .block()?.data ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
+            .bodyToMono<DAuthTokenResponse>()
+            .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
         return response
     }
 
-    /**
-     * DAuth AccessToken으로 사용자 정보 조회
-     */
     fun getUserInfo(accessToken: String): UserInfo {
         val webClient = webClientBuilder
             .baseUrl(DAUTH_BASE_URL)
             .build()
 
-        println("asdsadasdsadasd: " + accessToken)
+        try {
+            return webClient.get()
+                .uri("/userinfo")
+                .header("Authorization", "Bearer $accessToken")
+                .retrieve()
+                .bodyToMono<UserInfo>()
+                .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
+        } catch (e: Exception) {
+            val response = webClient.get()
+                .uri("/oauth/userinfo")
+                .header("Authorization", "Bearer $accessToken")
+                .retrieve()
+                .bodyToMono<BasicResponse<UserInfo>>()
+                .block()?.data ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
-        val response = webClient.get()
-            .uri("/oauth/userinfo")
-            .header("Authorization", "Bearer $accessToken")
-            .retrieve()
-            .bodyToMono< BasicResponse<UserInfo>>()
-            .block()?.data ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
-
-        return response
+            return response
+        }
     }
 }
