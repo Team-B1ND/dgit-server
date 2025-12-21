@@ -15,6 +15,9 @@ data class GithubStatsResponse(
     @Schema(description = "Github 사용자 소개", example = "Developer from Seoul")
     val bio: String?,
 
+    @Schema(description = "Github 사용자 프로필 사진 URL")
+    val avatarUrl: String?,
+
     @Schema(description = "오늘의 커밋 수", example = "5")
     val todayCommits: Int,
 
@@ -48,6 +51,7 @@ data class GithubStatsResponse(
                 username = stats.githubAccount.username,
                 name = stats.githubAccount.name,
                 bio = stats.githubAccount.bio,
+                avatarUrl = stats.githubAccount.avatarUrl,
                 todayCommits = stats.todayCommits,
                 weekCommits = stats.weekCommits,
                 totalCommits = stats.totalCommits,
