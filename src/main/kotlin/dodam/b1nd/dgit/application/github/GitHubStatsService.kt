@@ -56,6 +56,13 @@ class GithubStatsService(
         return (ranking + 1).toInt()
     }
 
+    fun getAccountPercentile(githubAccountId: Long): Double {
+        val ranking = getAccountRanking(githubAccountId)
+        val totalUsers = githubStatsRepository.count()
+        if (totalUsers == 0L) return 0.0
+        return (ranking.toDouble() / totalUsers.toDouble()) * 100.0
+    }
+
     private fun updateStatsFromGithub(stats: GithubStats, username: String) {
         val repositories = githubClient.getUserRepositories(username)
         stats.repositoryCount = repositories.size

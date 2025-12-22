@@ -39,6 +39,9 @@ data class GithubStatsResponse(
     @Schema(description = "랭킹 (전체 사용자 중 순위)", example = "3")
     val ranking: Int,
 
+    @Schema(description = "상위 퍼센트 (0~100)", example = "15.5")
+    val percentile: Double,
+
     @Schema(description = "레벨", example = "1")
     val level: Int,
 
@@ -46,7 +49,7 @@ data class GithubStatsResponse(
     val updatedAt: LocalDateTime
 ) {
     companion object {
-        fun from(stats: GithubStats, ranking: Int): GithubStatsResponse {
+        fun from(stats: GithubStats, ranking: Int, percentile: Double): GithubStatsResponse {
             return GithubStatsResponse(
                 username = stats.githubAccount.username,
                 name = stats.githubAccount.name,
@@ -59,6 +62,7 @@ data class GithubStatsResponse(
                 longestStreak = stats.longestStreak,
                 currentStreak = stats.currentStreak,
                 ranking = ranking,
+                percentile = percentile,
                 level = stats.level,
                 updatedAt = stats.updatedAt
             )

@@ -21,8 +21,9 @@ class GitHubStatsController(
     ): ApiResponse<GithubStatsResponse> {
         val stats = githubStatsService.getStats(githubAccountId)
         val ranking = githubStatsService.getAccountRanking(githubAccountId)
+        val percentile = githubStatsService.getAccountPercentile(githubAccountId)
 
-        val response = GithubStatsResponse.from(stats, ranking)
+        val response = GithubStatsResponse.from(stats, ranking, percentile)
 
         return ApiResponse.success(
             status = HttpStatus.OK,
