@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class GitHubAccountService(
+class GithubAccountService(
     private val githubAccountRepository: GithubAccountRepository
 ) {
 

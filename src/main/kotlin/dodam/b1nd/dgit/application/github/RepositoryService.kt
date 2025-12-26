@@ -6,6 +6,7 @@ import dodam.b1nd.dgit.domain.github.repository.repository.RepositoryRepository
 import dodam.b1nd.dgit.infrastructure.client.GithubClient
 import dodam.b1nd.dgit.infrastructure.exception.CustomException
 import dodam.b1nd.dgit.infrastructure.exception.ErrorCode
+import dodam.b1nd.dgit.infrastructure.security.UserAuthenticationHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -19,9 +20,9 @@ class RepositoryService(
 
     @Transactional
     fun register(githubAccountId: Long, owner: String, repoName: String): Repository {
-        val githubAccount = githubAccountRepository.findById(githubAccountId).orElseThrow {
-            CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
-        }
+        val currentUser = UserAuthenticationHolder.current()
+        val githubAccount = githubAccountRepository.findByIdAndUser(githubAccountId, currentUser)
+            ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
 
         if (repositoryRepository.existsByOwnerAndRepoName(owner, repoName)) {
             throw CustomException(ErrorCode.REPOSITORY_ALREADY_EXISTS)

@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.web.bind.annotation.PathVariable
 
 @Tag(name = "Github Stats", description = "Github 통계 API")
-interface GitHubStatsControllerDocs {
+interface GithubStatsControllerDocs {
 
     @Operation(
         summary = "Github 계정 통계 조회",

@@ -1,9 +1,9 @@
 package dodam.b1nd.dgit.presentation.github.controller
 
-import dodam.b1nd.dgit.application.github.usecase.GitHubAccountUseCase
+import dodam.b1nd.dgit.application.github.usecase.GithubAccountUseCase
 import dodam.b1nd.dgit.infrastructure.security.UserAuthenticationHolder
 import dodam.b1nd.dgit.presentation.common.ApiResponse
-import dodam.b1nd.dgit.presentation.github.controller.docs.GitHubAccountControllerDocs
+import dodam.b1nd.dgit.presentation.github.controller.docs.GithubAccountControllerDocs
 import dodam.b1nd.dgit.presentation.github.dto.request.RegisterGithubAccountRequest
 import dodam.b1nd.dgit.presentation.github.dto.response.GithubAccountResponse
 import jakarta.validation.Valid
@@ -13,9 +13,9 @@ import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/github")
-class GitHubAccountController(
-    private val gitHubAccountUseCase: GitHubAccountUseCase
-) : GitHubAccountControllerDocs {
+class GithubAccountController(
+    private val githubAccountUseCase: GithubAccountUseCase
+) : GithubAccountControllerDocs {
 
     @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
     @PostMapping("/register")
@@ -23,7 +23,7 @@ class GitHubAccountController(
         @Valid @RequestBody request: RegisterGithubAccountRequest
     ): ApiResponse<GithubAccountResponse> {
         val user = UserAuthenticationHolder.current()
-        val response = gitHubAccountUseCase.registerGithubAccount(user, request)
+        val response = githubAccountUseCase.registerGithubAccount(user, request)
 
         return ApiResponse.success(
             status = HttpStatus.CREATED,
@@ -36,7 +36,7 @@ class GitHubAccountController(
     @GetMapping("/me")
     override fun getMyGithubAccounts(): ApiResponse<List<GithubAccountResponse>> {
         val user = UserAuthenticationHolder.current()
-        val response = gitHubAccountUseCase.getMyGithubAccounts(user)
+        val response = githubAccountUseCase.getMyGithubAccounts(user)
 
         return ApiResponse.success(
             status = HttpStatus.OK,

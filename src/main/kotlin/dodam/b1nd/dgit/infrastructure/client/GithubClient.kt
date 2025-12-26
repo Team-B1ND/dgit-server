@@ -102,7 +102,7 @@ class GithubClient(
                 .bodyToMono<Map<String, Any>>()
                 .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
-            val dates = parseGraphQLResponse(response)
+            val dates = parseGraphQLResponse(response, author)
             allDates.addAll(dates)
 
             val pageInfo = extractPageInfo(response)
@@ -121,13 +121,18 @@ class GithubClient(
                 defaultBranchRef {
                   target {
                     ... on Commit {
-                      history(first: 100, author: { id: "$author" }$afterClause) {
+                      history(first: 100$afterClause) {
                         pageInfo {
                           hasNextPage
                           endCursor
                         }
                         nodes {
                           committedDate
+                          author {
+                            user {
+                              login
+                            }
+                          }
                         }
                       }
                     }
@@ -138,7 +143,7 @@ class GithubClient(
         """.trimIndent()
     }
 
-    private fun parseGraphQLResponse(response: Map<String, Any>): List<LocalDate> {
+    private fun parseGraphQLResponse(response: Map<String, Any>, authorUsername: String): List<LocalDate> {
         try {
             val data = response["data"] as? Map<*, *> ?: return emptyList()
             val repository = data["repository"] as? Map<*, *> ?: return emptyList()
@@ -148,10 +153,16 @@ class GithubClient(
             val nodes = history["nodes"] as? List<*> ?: return emptyList()
 
             return nodes.mapNotNull { node ->
-                val nodeMap = node as? Map<*, *>
-                val dateString = nodeMap?.get("committedDate") as? String
-                dateString?.let {
-                    LocalDateTime.parse(it, DateTimeFormatter.ISO_DATE_TIME).toLocalDate()
+                val nodeMap = node as? Map<*, *> ?: return@mapNotNull null
+                val dateString = nodeMap["committedDate"] as? String
+                val authorMap = nodeMap["author"] as? Map<*, *>
+                val userMap = authorMap?.get("user") as? Map<*, *>
+                val login = userMap?.get("login") as? String
+
+                if (login?.equals(authorUsername, ignoreCase = true) == true && dateString != null) {
+                    LocalDateTime.parse(dateString, DateTimeFormatter.ISO_DATE_TIME).toLocalDate()
+                } else {
+                    null
                 }
             }
         } catch (e: Exception) {

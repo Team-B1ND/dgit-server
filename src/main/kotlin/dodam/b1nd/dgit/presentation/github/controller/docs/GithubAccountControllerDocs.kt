@@ -10,7 +10,7 @@ import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.RequestBody
 
 @Tag(name = "Github Account", description = "Github 계정 관리 API")
-interface GitHubAccountControllerDocs {
+interface GithubAccountControllerDocs {
 
     @Operation(
         summary = "Github 계정 등록",
