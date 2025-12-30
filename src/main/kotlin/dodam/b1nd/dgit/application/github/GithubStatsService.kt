@@ -67,16 +67,7 @@ class GithubStatsService(
         val repositories = githubClient.getUserRepositories(username)
         stats.repositoryCount = repositories.size
 
-        val allCommitDates = mutableListOf<LocalDate>()
-
-        for (repo in repositories) {
-            val commitDates = githubClient.getCommitDates(
-                owner = username,
-                repo = repo.name,
-                author = username
-            )
-            allCommitDates.addAll(commitDates)
-        }
+        val allCommitDates = githubClient.getAllUserCommitDates(username)
 
         val sortedDates = allCommitDates.sorted()
         stats.totalCommits = sortedDates.size

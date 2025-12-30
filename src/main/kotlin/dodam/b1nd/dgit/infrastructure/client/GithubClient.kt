@@ -38,9 +38,6 @@ class GithubClient(
             .block() ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
     }
 
-    /**
-     * 사용자의 모든 public 리포지토리 조회
-     */
     fun getUserRepositories(username: String): List<GithubRepository> {
         val webClient = webClientBuilder
             .baseUrl(GITHUB_API_BASE_URL)
@@ -73,9 +70,84 @@ class GithubClient(
         return repositories
     }
 
-    /**
-     * GraphQL로 커밋 날짜만 조회 (응답 크기 99% 감소)
-     */
+    fun getAllUserCommitDates(username: String): List<LocalDate> {
+        val allDates = mutableListOf<LocalDate>()
+        val currentYear = LocalDate.now().year
+        val startYear = 2008
+
+        for (year in startYear..currentYear) {
+            val from = "${year}-01-01T00:00:00Z"
+            val to = "${year}-12-31T23:59:59Z"
+            val dates = getUserCommitDatesForYear(username, from, to)
+            allDates.addAll(dates)
+        }
+
+        return allDates
+    }
+
+    private fun getUserCommitDatesForYear(username: String, from: String, to: String): List<LocalDate> {
+        val webClient = webClientBuilder
+            .baseUrl(GITHUB_API_BASE_URL)
+            .build()
+
+        val query = """
+            {
+              user(login: "$username") {
+                contributionsCollection(from: "$from", to: "$to") {
+                  commitContributionsByRepository {
+                    contributions {
+                      nodes {
+                        occurredAt
+                      }
+                    }
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val requestBody = mapOf("query" to query)
+
+        val response = webClient.post()
+            .uri("/graphql")
+            .header("Authorization", "Bearer ${githubProperties.token}")
+            .header("Content-Type", "application/json")
+            .bodyValue(requestBody)
+            .retrieve()
+            .bodyToMono<Map<String, Any>>()
+            .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
+
+        return parseContributionsResponse(response)
+    }
+
+    private fun parseContributionsResponse(response: Map<String, Any>): List<LocalDate> {
+        try {
+            val data = response["data"] as? Map<*, *> ?: return emptyList()
+            val user = data["user"] as? Map<*, *> ?: return emptyList()
+            val contributionsCollection = user["contributionsCollection"] as? Map<*, *> ?: return emptyList()
+            val commitContributionsByRepository = contributionsCollection["commitContributionsByRepository"] as? List<*> ?: return emptyList()
+
+            val dates = mutableListOf<LocalDate>()
+
+            for (repoContribution in commitContributionsByRepository) {
+                val repoMap = repoContribution as? Map<*, *> ?: continue
+                val contributions = repoMap["contributions"] as? Map<*, *> ?: continue
+                val nodes = contributions["nodes"] as? List<*> ?: continue
+
+                for (node in nodes) {
+                    val nodeMap = node as? Map<*, *> ?: continue
+                    val occurredAt = nodeMap["occurredAt"] as? String ?: continue
+                    dates.add(LocalDateTime.parse(occurredAt, DateTimeFormatter.ISO_DATE_TIME).toLocalDate())
+                }
+            }
+
+            return dates
+        } catch (e: Exception) {
+            return emptyList()
+        }
+    }
+
+    @Deprecated("Use getAllUserCommitDates instead", ReplaceWith("getAllUserCommitDates(author)"))
     fun getCommitDates(
         owner: String,
         repo: String,
@@ -166,7 +238,6 @@ class GithubClient(
                 }
             }
         } catch (e: Exception) {
-            println("GraphQL 응답 파싱 실패: ${e.message}")
             return emptyList()
         }
     }
@@ -186,10 +257,6 @@ class GithubClient(
         }
     }
 
-    /**
-     * 특정 리포지토리의 커밋 조회 (특정 author, since 날짜 이후)
-     * @deprecated GraphQL 버전(getCommitDates)을 사용하세요
-     */
     @Deprecated("Use getCommitDates instead", ReplaceWith("getCommitDates(owner, repo, author)"))
     fun getRepositoryCommits(
         owner: String,
