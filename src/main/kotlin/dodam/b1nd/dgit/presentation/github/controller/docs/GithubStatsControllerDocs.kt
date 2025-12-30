@@ -16,4 +16,11 @@ interface GithubStatsControllerDocs {
         security = [SecurityRequirement(name = "Bearer Authentication")]
     )
     fun getGithubAccountStats(@PathVariable githubAccountId: Long): ApiResponse<GithubStatsResponse>
+
+    @Operation(
+        summary = "전체 사용자 통계 업데이트",
+        description = "모든 Github 계정의 통계를 수동으로 업데이트합니다. 스케줄러와 동일한 로직으로 실행됩니다. (관리자 전용)",
+        security = [SecurityRequirement(name = "Bearer Authentication")]
+    )
+    fun updateAllStats(): ApiResponse<Unit>
 }

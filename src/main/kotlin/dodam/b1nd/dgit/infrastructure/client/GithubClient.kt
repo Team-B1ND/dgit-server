@@ -14,6 +14,11 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+data class UserCommitData(
+    val totalCommits: Int,
+    val commitDates: List<LocalDate>
+)
+
 @Component
 class GithubClient(
     private val webClientBuilder: WebClient.Builder,
@@ -70,22 +75,46 @@ class GithubClient(
         return repositories
     }
 
-    fun getAllUserCommitDates(username: String): List<LocalDate> {
+    fun getAllUserCommitDates(username: String): UserCommitData {
         val allDates = mutableListOf<LocalDate>()
+        var totalCommitCount = 0
         val currentYear = LocalDate.now().year
         val startYear = 2008
 
         for (year in startYear..currentYear) {
             val from = "${year}-01-01T00:00:00Z"
             val to = "${year}-12-31T23:59:59Z"
-            val dates = getUserCommitDatesForYear(username, from, to)
-            allDates.addAll(dates)
+            val yearData = getUserCommitDatesForYear(username, from, to)
+            allDates.addAll(yearData.commitDates)
+            totalCommitCount += yearData.totalCommits
         }
 
-        return allDates
+        return UserCommitData(totalCommitCount, allDates)
     }
 
-    private fun getUserCommitDatesForYear(username: String, from: String, to: String): List<LocalDate> {
+    private fun getUserCommitDatesForYear(username: String, from: String, to: String): UserCommitData {
+        val allDates = mutableListOf<LocalDate>()
+        var totalCommitCount = 0
+        var cursor: String? = null
+        var hasNextPage = true
+        var pageCount = 0
+
+        while (hasNextPage && pageCount < 5) {
+            pageCount++
+            val data = fetchCommitPage(username, from, to, cursor)
+
+            allDates.addAll(data.commitDates)
+            totalCommitCount += data.totalCommits
+
+            hasNextPage = false
+            cursor = null
+            break
+        }
+
+        return UserCommitData(totalCommitCount, allDates)
+    }
+
+    private fun fetchCommitPage(username: String, from: String, to: String, cursor: String?): UserCommitData {
         val webClient = webClientBuilder
             .baseUrl(GITHUB_API_BASE_URL)
             .build()
@@ -94,10 +123,18 @@ class GithubClient(
             {
               user(login: "$username") {
                 contributionsCollection(from: "$from", to: "$to") {
-                  commitContributionsByRepository {
-                    contributions {
+                  commitContributionsByRepository(maxRepositories: 100) {
+                    repository {
+                      nameWithOwner
+                    }
+                    contributions(first: 100) {
+                      totalCount
                       nodes {
                         occurredAt
+                      }
+                      pageInfo {
+                        hasNextPage
+                        endCursor
                       }
                     }
                   }
@@ -117,22 +154,31 @@ class GithubClient(
             .bodyToMono<Map<String, Any>>()
             .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
-        return parseContributionsResponse(response)
+        return parseContributionsResponse(response, username)
     }
 
-    private fun parseContributionsResponse(response: Map<String, Any>): List<LocalDate> {
+    private fun parseContributionsResponse(response: Map<String, Any>, username: String): UserCommitData {
         try {
-            val data = response["data"] as? Map<*, *> ?: return emptyList()
-            val user = data["user"] as? Map<*, *> ?: return emptyList()
-            val contributionsCollection = user["contributionsCollection"] as? Map<*, *> ?: return emptyList()
-            val commitContributionsByRepository = contributionsCollection["commitContributionsByRepository"] as? List<*> ?: return emptyList()
+            val errors = response["errors"] as? List<*>
+            if (errors != null && errors.isNotEmpty()) {
+                return UserCommitData(0, emptyList())
+            }
+
+            val data = response["data"] as? Map<*, *> ?: return UserCommitData(0, emptyList())
+            val user = data["user"] as? Map<*, *> ?: return UserCommitData(0, emptyList())
+            val contributionsCollection = user["contributionsCollection"] as? Map<*, *> ?: return UserCommitData(0, emptyList())
+            val commitContributionsByRepository = contributionsCollection["commitContributionsByRepository"] as? List<*> ?: return UserCommitData(0, emptyList())
 
             val dates = mutableListOf<LocalDate>()
+            var totalCommitsFromAPI = 0
 
             for (repoContribution in commitContributionsByRepository) {
                 val repoMap = repoContribution as? Map<*, *> ?: continue
                 val contributions = repoMap["contributions"] as? Map<*, *> ?: continue
+                val totalCount = contributions["totalCount"] as? Int ?: 0
                 val nodes = contributions["nodes"] as? List<*> ?: continue
+
+                totalCommitsFromAPI += totalCount
 
                 for (node in nodes) {
                     val nodeMap = node as? Map<*, *> ?: continue
@@ -141,9 +187,9 @@ class GithubClient(
                 }
             }
 
-            return dates
+            return UserCommitData(totalCommitsFromAPI, dates)
         } catch (e: Exception) {
-            return emptyList()
+            return UserCommitData(0, emptyList())
         }
     }
 

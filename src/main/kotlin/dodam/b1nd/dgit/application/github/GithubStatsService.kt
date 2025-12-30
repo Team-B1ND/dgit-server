@@ -67,10 +67,10 @@ class GithubStatsService(
         val repositories = githubClient.getUserRepositories(username)
         stats.repositoryCount = repositories.size
 
-        val allCommitDates = githubClient.getAllUserCommitDates(username)
+        val commitData = githubClient.getAllUserCommitDates(username)
 
-        val sortedDates = allCommitDates.sorted()
-        stats.totalCommits = sortedDates.size
+        val sortedDates = commitData.commitDates.sorted()
+        stats.totalCommits = commitData.totalCommits
 
         val today = LocalDate.now()
         stats.todayCommits = sortedDates.count { it == today }

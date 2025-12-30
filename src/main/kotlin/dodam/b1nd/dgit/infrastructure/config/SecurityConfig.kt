@@ -56,6 +56,7 @@ class SecurityConfig(
                     .requestMatchers(HttpMethod.GET, "/hall-of-fame", "/hall-of-fame/first-place").permitAll()
                     .requestMatchers(HttpMethod.GET, "/ranking/commit", "/ranking/repository", "/ranking/streak", "/ranking/total").permitAll()
                     .requestMatchers(HttpMethod.GET, "/stats/{githubAccountId}").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/stats/update-all").permitAll()
                     .anyRequest().authenticated()
             }
             .httpBasic(Customizer.withDefaults())
