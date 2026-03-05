@@ -8,6 +8,7 @@ import dodam.b1nd.dgit.infrastructure.client.GithubClient
 import dodam.b1nd.dgit.infrastructure.exception.CustomException
 import dodam.b1nd.dgit.infrastructure.exception.ErrorCode
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -21,7 +22,7 @@ class GithubStatsService(
     private val githubClient: GithubClient
 ) {
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun updateUserStats(account: GithubAccount) {
         val userInfo = githubClient.getUser(account.username)
         account.name = userInfo.name

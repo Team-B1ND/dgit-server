@@ -76,20 +76,89 @@ class GithubClient(
     }
 
     fun getAllUserCommitDates(username: String): UserCommitData {
+        return getAllUserCommitDatesFromSearch(username)
+    }
+
+    private fun getAllUserCommitDatesFromSearch(username: String): UserCommitData {
         val allDates = mutableListOf<LocalDate>()
         var totalCommitCount = 0
         val currentYear = LocalDate.now().year
         val startYear = 2008
 
+        println("🔍 [Search API] Starting commit search for user: $username")
+
         for (year in startYear..currentYear) {
-            val from = "${year}-01-01T00:00:00Z"
-            val to = "${year}-12-31T23:59:59Z"
-            val yearData = getUserCommitDatesForYear(username, from, to)
-            allDates.addAll(yearData.commitDates)
-            totalCommitCount += yearData.totalCommits
+            for (month in 1..12) {
+                if (year == currentYear && month > LocalDate.now().monthValue) {
+                    break
+                }
+
+                val startDate = LocalDate.of(year, month, 1)
+                val endDate = startDate.plusMonths(1).minusDays(1)
+
+                val monthData = searchCommitsByMonth(username, startDate, endDate)
+                allDates.addAll(monthData.commitDates)
+                totalCommitCount += monthData.totalCommits
+
+                if (monthData.totalCommits > 0) {
+                    println("  📅 $year-${month.toString().padStart(2, '0')}: ${monthData.totalCommits} commits")
+                }
+            }
         }
 
-        return UserCommitData(totalCommitCount, allDates)
+        println("🎯 [Search API] Total commits found: $totalCommitCount")
+        return UserCommitData(totalCommitCount, allDates.distinct())
+    }
+
+    private fun searchCommitsByMonth(username: String, startDate: LocalDate, endDate: LocalDate): UserCommitData {
+        val webClient = webClientBuilder
+            .baseUrl(GITHUB_API_BASE_URL)
+            .build()
+
+        val query = "author:$username+author-date:$startDate..$endDate"
+        val allCommits = mutableListOf<Map<*, *>>()
+        var page = 1
+        val perPage = 100
+
+        while (page <= 10) {
+            val response = webClient.get()
+                .uri { uriBuilder ->
+                    uriBuilder
+                        .path("/search/commits")
+                        .queryParam("q", query)
+                        .queryParam("per_page", perPage)
+                        .queryParam("page", page)
+                        .build()
+                }
+                .header("Authorization", "Bearer ${githubProperties.token}")
+                .header("Accept", "application/vnd.github.cloak-preview")
+                .retrieve()
+                .bodyToMono<Map<String, Any>>()
+                .block() ?: break
+
+            val items = response["items"] as? List<*> ?: break
+            if (items.isEmpty()) break
+
+            allCommits.addAll(items.filterIsInstance<Map<*, *>>())
+
+            val totalCount = response["total_count"] as? Int ?: 0
+            if (allCommits.size >= totalCount || items.size < perPage) {
+                break
+            }
+
+            page++
+        }
+
+        val dates = allCommits.mapNotNull { commit ->
+            val commitData = commit["commit"] as? Map<*, *>
+            val author = commitData?.get("author") as? Map<*, *>
+            val dateStr = author?.get("date") as? String
+            dateStr?.let {
+                LocalDateTime.parse(it, DateTimeFormatter.ISO_DATE_TIME).toLocalDate()
+            }
+        }.distinct()
+
+        return UserCommitData(allCommits.size, dates)
     }
 
     private fun getUserCommitDatesForYear(username: String, from: String, to: String): UserCommitData {
