@@ -16,7 +16,6 @@ class GithubStatsController(
     private val githubStatsUseCase: GithubStatsUseCase
 ) : GithubStatsControllerDocs {
 
-    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
     @GetMapping("/{githubAccountId}")
     override fun getGithubAccountStats(
         @PathVariable githubAccountId: Long

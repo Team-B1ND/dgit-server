@@ -1,22 +1,27 @@
 package dodam.b1nd.dgit.infrastructure.client
 
-import dodam.b1nd.dgit.presentation.github.dto.external.GithubCommit
-import dodam.b1nd.dgit.presentation.github.dto.external.GithubRepository
-import dodam.b1nd.dgit.presentation.github.dto.external.GithubUser
 import dodam.b1nd.dgit.infrastructure.config.GithubProperties
 import dodam.b1nd.dgit.infrastructure.exception.CustomException
 import dodam.b1nd.dgit.infrastructure.exception.ErrorCode
-import org.springframework.core.ParameterizedTypeReference
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.bodyToMono
 import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
-data class UserCommitData(
-    val totalCommits: Int,
-    val commitDates: List<LocalDate>
+data class ContributionDay(
+    val date: LocalDate,
+    val count: Int
+)
+
+data class GithubUserData(
+    val name: String?,
+    val bio: String?,
+    val avatarUrl: String,
+    val createdAt: LocalDate,
+    val repositoryCount: Int,
+    var totalCommits: Int,
+    val contributionDays: MutableList<ContributionDay>
 )
 
 @Component
@@ -25,393 +30,229 @@ class GithubClient(
     private val githubProperties: GithubProperties
 ) {
 
+    private val log = LoggerFactory.getLogger(GithubClient::class.java)
+
     companion object {
-        private const val GITHUB_API_BASE_URL = "https://api.github.com"
-        private const val PER_PAGE = 100
+        private const val GITHUB_API_URL = "https://api.github.com"
+        private const val MAX_YEARS_PER_QUERY = 6
     }
 
-    fun getUser(username: String): GithubUser {
-        val webClient = webClientBuilder
-            .baseUrl(GITHUB_API_BASE_URL)
-            .build()
-
-        return webClient.get()
-            .uri("/users/$username")
-            .header("Authorization", "token ${githubProperties.token}")
-            .retrieve()
-            .bodyToMono<GithubUser>()
-            .block() ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
-    }
-
-    fun getUserRepositories(username: String): List<GithubRepository> {
-        val webClient = webClientBuilder
-            .baseUrl(GITHUB_API_BASE_URL)
-            .build()
-
-        val repositories = mutableListOf<GithubRepository>()
-        var page = 1
-        var hasMore = true
-
-        while (hasMore) {
-            val response = webClient.get()
-                .uri { uriBuilder ->
-                    uriBuilder
-                        .path("/users/$username/repos")
-                        .queryParam("type", "owner")
-                        .queryParam("per_page", PER_PAGE)
-                        .queryParam("page", page)
-                        .build()
-                }
-                .header("Authorization", "token ${githubProperties.token}")
-                .retrieve()
-                .bodyToMono(object : ParameterizedTypeReference<List<GithubRepository>>() {})
-                .block() ?: emptyList()
-
-            repositories.addAll(response)
-            hasMore = response.size == PER_PAGE
-            page++
-        }
-
-        return repositories
-    }
-
-    fun getAllUserCommitDates(username: String): UserCommitData {
-        return getAllUserCommitDatesFromSearch(username)
-    }
-
-    private fun getAllUserCommitDatesFromSearch(username: String): UserCommitData {
-        val allDates = mutableListOf<LocalDate>()
-        var totalCommitCount = 0
+    fun fetchUserData(username: String): GithubUserData {
         val currentYear = LocalDate.now().year
-        val startYear = 2008
+        val recentYears = (maxOf(2008, currentYear - MAX_YEARS_PER_QUERY + 1)..currentYear).toList()
 
-        println("🔍 [Search API] Starting commit search for user: $username")
+        log.info("Fetching user data for: {} (years: {}~{})", username, recentYears.first(), recentYears.last())
 
-        for (year in startYear..currentYear) {
-            for (month in 1..12) {
-                if (year == currentYear && month > LocalDate.now().monthValue) {
-                    break
-                }
+        val response = executeGraphQL(buildFullUserQuery(username, recentYears))
+        val userData = parseFullUserResponse(response, recentYears)
 
-                val startDate = LocalDate.of(year, month, 1)
-                val endDate = startDate.plusMonths(1).minusDays(1)
+        val createdYear = userData.createdAt.year
+        val oldestFetched = recentYears.min()
 
-                val monthData = searchCommitsByMonth(username, startDate, endDate)
-                allDates.addAll(monthData.commitDates)
-                totalCommitCount += monthData.totalCommits
-
-                if (monthData.totalCommits > 0) {
-                    println("  📅 $year-${month.toString().padStart(2, '0')}: ${monthData.totalCommits} commits")
-                }
+        if (createdYear < oldestFetched) {
+            val olderYears = (createdYear until oldestFetched).toList()
+            for (batch in olderYears.chunked(MAX_YEARS_PER_QUERY)) {
+                log.info("Fetching older contributions for: {} (years: {}~{})", username, batch.first(), batch.last())
+                val olderResponse = executeGraphQL(buildContributionsOnlyQuery(username, batch))
+                val (commits, days) = parseContributions(olderResponse, batch)
+                userData.totalCommits += commits
+                userData.contributionDays.addAll(days)
             }
         }
 
-        println("🎯 [Search API] Total commits found: $totalCommitCount")
-        return UserCommitData(totalCommitCount, allDates.distinct())
+        log.info("Completed fetching data for: {} (totalCommits: {})", username, userData.totalCommits)
+        return userData
     }
 
-    private fun searchCommitsByMonth(username: String, startDate: LocalDate, endDate: LocalDate): UserCommitData {
-        val webClient = webClientBuilder
-            .baseUrl(GITHUB_API_BASE_URL)
-            .build()
-
-        val query = "author:$username+author-date:$startDate..$endDate"
-        val allCommits = mutableListOf<Map<*, *>>()
-        var page = 1
-        val perPage = 100
-
-        while (page <= 10) {
-            val response = webClient.get()
-                .uri { uriBuilder ->
-                    uriBuilder
-                        .path("/search/commits")
-                        .queryParam("q", query)
-                        .queryParam("per_page", perPage)
-                        .queryParam("page", page)
-                        .build()
-                }
-                .header("Authorization", "Bearer ${githubProperties.token}")
-                .header("Accept", "application/vnd.github.cloak-preview")
-                .retrieve()
-                .bodyToMono<Map<String, Any>>()
-                .block() ?: break
-
-            val items = response["items"] as? List<*> ?: break
-            if (items.isEmpty()) break
-
-            allCommits.addAll(items.filterIsInstance<Map<*, *>>())
-
-            val totalCount = response["total_count"] as? Int ?: 0
-            if (allCommits.size >= totalCount || items.size < perPage) {
-                break
-            }
-
-            page++
-        }
-
-        val dates = allCommits.mapNotNull { commit ->
-            val commitData = commit["commit"] as? Map<*, *>
-            val author = commitData?.get("author") as? Map<*, *>
-            val dateStr = author?.get("date") as? String
-            dateStr?.let {
-                LocalDateTime.parse(it, DateTimeFormatter.ISO_DATE_TIME).toLocalDate()
-            }
-        }.distinct()
-
-        return UserCommitData(allCommits.size, dates)
-    }
-
-    private fun getUserCommitDatesForYear(username: String, from: String, to: String): UserCommitData {
-        val allDates = mutableListOf<LocalDate>()
-        var totalCommitCount = 0
-        var cursor: String? = null
-        var hasNextPage = true
-        var pageCount = 0
-
-        while (hasNextPage && pageCount < 5) {
-            pageCount++
-            val data = fetchCommitPage(username, from, to, cursor)
-
-            allDates.addAll(data.commitDates)
-            totalCommitCount += data.totalCommits
-
-            hasNextPage = false
-            cursor = null
-            break
-        }
-
-        return UserCommitData(totalCommitCount, allDates)
-    }
-
-    private fun fetchCommitPage(username: String, from: String, to: String, cursor: String?): UserCommitData {
-        val webClient = webClientBuilder
-            .baseUrl(GITHUB_API_BASE_URL)
-            .build()
-
+    fun fetchUserAvatarUrl(username: String): String {
         val query = """
             {
-              user(login: "$username") {
-                contributionsCollection(from: "$from", to: "$to") {
-                  commitContributionsByRepository(maxRepositories: 100) {
-                    repository {
-                      nameWithOwner
-                    }
-                    contributions(first: 100) {
-                      totalCount
-                      nodes {
-                        occurredAt
-                      }
-                      pageInfo {
-                        hasNextPage
-                        endCursor
-                      }
-                    }
-                  }
+                user(login: "$username") {
+                    avatarUrl
                 }
-              }
             }
         """.trimIndent()
 
-        val requestBody = mapOf("query" to query)
+        val response = executeGraphQL(query)
+        val user = extractUser(response)
+        return user["avatarUrl"] as? String ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
+    }
+
+    fun fetchContributionsForDateRange(username: String, from: LocalDate, to: LocalDate): List<ContributionDay> {
+        val years = (from.year..to.year).toList()
+        val response = executeGraphQL(buildContributionsOnlyQuery(username, years))
+        val (_, days) = parseContributions(response, years)
+        return days.filter { it.date in from..to }
+    }
+
+    fun fetchRepositoryStats(owner: String, repoName: String): Pair<Int, Int> {
+        val query = """
+            {
+                repository(owner: "$owner", name: "$repoName") {
+                    stargazerCount
+                    defaultBranchRef {
+                        target {
+                            ... on Commit {
+                                history {
+                                    totalCount
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """.trimIndent()
+
+        val response = executeGraphQL(query)
+        val data = response["data"] as? Map<*, *> ?: return Pair(0, 0)
+        val repository = data["repository"] as? Map<*, *> ?: return Pair(0, 0)
+
+        val starCount = repository["stargazerCount"] as? Int ?: 0
+        val defaultBranchRef = repository["defaultBranchRef"] as? Map<*, *>
+        val target = defaultBranchRef?.get("target") as? Map<*, *>
+        val history = target?.get("history") as? Map<*, *>
+        val commitCount = history?.get("totalCount") as? Int ?: 0
+
+        return Pair(commitCount, starCount)
+    }
+
+    private fun executeGraphQL(query: String): Map<String, Any> {
+        val webClient = webClientBuilder.baseUrl(GITHUB_API_URL).build()
 
         val response = webClient.post()
             .uri("/graphql")
             .header("Authorization", "Bearer ${githubProperties.token}")
             .header("Content-Type", "application/json")
-            .bodyValue(requestBody)
+            .bodyValue(mapOf("query" to query))
             .retrieve()
             .bodyToMono<Map<String, Any>>()
             .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
 
-        return parseContributionsResponse(response, username)
-    }
-
-    private fun parseContributionsResponse(response: Map<String, Any>, username: String): UserCommitData {
-        try {
-            val errors = response["errors"] as? List<*>
-            if (errors != null && errors.isNotEmpty()) {
-                return UserCommitData(0, emptyList())
-            }
-
-            val data = response["data"] as? Map<*, *> ?: return UserCommitData(0, emptyList())
-            val user = data["user"] as? Map<*, *> ?: return UserCommitData(0, emptyList())
-            val contributionsCollection = user["contributionsCollection"] as? Map<*, *> ?: return UserCommitData(0, emptyList())
-            val commitContributionsByRepository = contributionsCollection["commitContributionsByRepository"] as? List<*> ?: return UserCommitData(0, emptyList())
-
-            val dates = mutableListOf<LocalDate>()
-            var totalCommitsFromAPI = 0
-
-            for (repoContribution in commitContributionsByRepository) {
-                val repoMap = repoContribution as? Map<*, *> ?: continue
-                val contributions = repoMap["contributions"] as? Map<*, *> ?: continue
-                val totalCount = contributions["totalCount"] as? Int ?: 0
-                val nodes = contributions["nodes"] as? List<*> ?: continue
-
-                totalCommitsFromAPI += totalCount
-
-                for (node in nodes) {
-                    val nodeMap = node as? Map<*, *> ?: continue
-                    val occurredAt = nodeMap["occurredAt"] as? String ?: continue
-                    dates.add(LocalDateTime.parse(occurredAt, DateTimeFormatter.ISO_DATE_TIME).toLocalDate())
-                }
-            }
-
-            return UserCommitData(totalCommitsFromAPI, dates)
-        } catch (e: Exception) {
-            return UserCommitData(0, emptyList())
-        }
-    }
-
-    @Deprecated("Use getAllUserCommitDates instead", ReplaceWith("getAllUserCommitDates(author)"))
-    fun getCommitDates(
-        owner: String,
-        repo: String,
-        author: String
-    ): List<LocalDate> {
-        val webClient = webClientBuilder
-            .baseUrl(GITHUB_API_BASE_URL)
-            .build()
-
-        val allDates = mutableListOf<LocalDate>()
-        var hasNextPage = true
-        var endCursor: String? = null
-
-        while (hasNextPage) {
-            val query = buildGraphQLQuery(owner, repo, author, endCursor)
-            val requestBody = mapOf("query" to query)
-
-            val response = webClient.post()
-                .uri("/graphql")
-                .header("Authorization", "Bearer ${githubProperties.token}")
-                .header("Content-Type", "application/json")
-                .bodyValue(requestBody)
-                .retrieve()
-                .bodyToMono<Map<String, Any>>()
-                .block() ?: throw CustomException(ErrorCode.INTERNAL_SERVER_ERROR)
-
-            val dates = parseGraphQLResponse(response, author)
-            allDates.addAll(dates)
-
-            val pageInfo = extractPageInfo(response)
-            hasNextPage = pageInfo["hasNextPage"] as? Boolean ?: false
-            endCursor = pageInfo["endCursor"] as? String
+        val errors = response["errors"] as? List<*>
+        if (errors != null && errors.isNotEmpty()) {
+            val errorMessage = (errors[0] as? Map<*, *>)?.get("message") as? String ?: "Unknown GraphQL error"
+            throw RuntimeException("GitHub GraphQL error: $errorMessage")
         }
 
-        return allDates
+        return response
     }
 
-    private fun buildGraphQLQuery(owner: String, repo: String, author: String, cursor: String?): String {
-        val afterClause = if (cursor != null) """, after: "$cursor"""" else ""
+    private fun buildFullUserQuery(username: String, years: List<Int>): String {
+        val contributionFragments = buildContributionFragments(years)
+
         return """
             {
-              repository(owner: "$owner", name: "$repo") {
-                defaultBranchRef {
-                  target {
-                    ... on Commit {
-                      history(first: 100$afterClause) {
-                        pageInfo {
-                          hasNextPage
-                          endCursor
-                        }
-                        nodes {
-                          committedDate
-                          author {
-                            user {
-                              login
-                            }
-                          }
-                        }
-                      }
+                user(login: "$username") {
+                    name
+                    bio
+                    avatarUrl
+                    createdAt
+                    repositories(ownerAffiliations: OWNER) {
+                        totalCount
                     }
-                  }
+                    $contributionFragments
                 }
-              }
             }
         """.trimIndent()
     }
 
-    private fun parseGraphQLResponse(response: Map<String, Any>, authorUsername: String): List<LocalDate> {
-        try {
-            val data = response["data"] as? Map<*, *> ?: return emptyList()
-            val repository = data["repository"] as? Map<*, *> ?: return emptyList()
-            val defaultBranchRef = repository["defaultBranchRef"] as? Map<*, *> ?: return emptyList()
-            val target = defaultBranchRef["target"] as? Map<*, *> ?: return emptyList()
-            val history = target["history"] as? Map<*, *> ?: return emptyList()
-            val nodes = history["nodes"] as? List<*> ?: return emptyList()
+    private fun buildContributionsOnlyQuery(username: String, years: List<Int>): String {
+        val contributionFragments = buildContributionFragments(years)
 
-            return nodes.mapNotNull { node ->
-                val nodeMap = node as? Map<*, *> ?: return@mapNotNull null
-                val dateString = nodeMap["committedDate"] as? String
-                val authorMap = nodeMap["author"] as? Map<*, *>
-                val userMap = authorMap?.get("user") as? Map<*, *>
-                val login = userMap?.get("login") as? String
-
-                if (login?.equals(authorUsername, ignoreCase = true) == true && dateString != null) {
-                    LocalDateTime.parse(dateString, DateTimeFormatter.ISO_DATE_TIME).toLocalDate()
-                } else {
-                    null
+        return """
+            {
+                user(login: "$username") {
+                    $contributionFragments
                 }
             }
-        } catch (e: Exception) {
-            return emptyList()
-        }
+        """.trimIndent()
     }
 
-    private fun extractPageInfo(response: Map<String, Any>): Map<String, Any> {
-        try {
-            val data = response["data"] as? Map<*, *> ?: return emptyMap()
-            val repository = data["repository"] as? Map<*, *> ?: return emptyMap()
-            val defaultBranchRef = repository["defaultBranchRef"] as? Map<*, *> ?: return emptyMap()
-            val target = defaultBranchRef["target"] as? Map<*, *> ?: return emptyMap()
-            val history = target["history"] as? Map<*, *> ?: return emptyMap()
-            val pageInfo = history["pageInfo"] as? Map<*, *> ?: return emptyMap()
-
-            return pageInfo.mapKeys { it.key.toString() }.mapValues { it.value ?: false }
-        } catch (e: Exception) {
-            return emptyMap()
-        }
-    }
-
-    @Deprecated("Use getCommitDates instead", ReplaceWith("getCommitDates(owner, repo, author)"))
-    fun getRepositoryCommits(
-        owner: String,
-        repo: String,
-        author: String,
-        since: LocalDate? = null
-    ): List<GithubCommit> {
-        val webClient = webClientBuilder
-            .baseUrl(GITHUB_API_BASE_URL)
-            .build()
-
-        val commits = mutableListOf<GithubCommit>()
-        var page = 1
-        var hasMore = true
-
-        while (hasMore) {
-            val response = webClient.get()
-                .uri { uriBuilder ->
-                    val builder = uriBuilder
-                        .path("/repos/$owner/$repo/commits")
-                        .queryParam("author", author)
-                        .queryParam("per_page", PER_PAGE)
-                        .queryParam("page", page)
-
-                    if (since != null) {
-                        builder.queryParam("since", since.atStartOfDay().format(DateTimeFormatter.ISO_DATE_TIME))
+    private fun buildContributionFragments(years: List<Int>): String {
+        return years.joinToString("\n") { year ->
+            """
+                    y$year: contributionsCollection(from: "${year}-01-01T00:00:00Z", to: "${year}-12-31T23:59:59Z") {
+                        totalCommitContributions
+                        contributionCalendar {
+                            weeks {
+                                contributionDays {
+                                    contributionCount
+                                    date
+                                }
+                            }
+                        }
                     }
+            """.trimIndent()
+        }
+    }
 
-                    builder.build()
+    private fun extractUser(response: Map<String, Any>): Map<*, *> {
+        val data = response["data"] as? Map<*, *>
+            ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
+        return data["user"] as? Map<*, *>
+            ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
+    }
+
+    private fun parseFullUserResponse(response: Map<String, Any>, years: List<Int>): GithubUserData {
+        val user = extractUser(response)
+
+        val name = user["name"] as? String
+        val bio = user["bio"] as? String
+        val avatarUrl = user["avatarUrl"] as? String ?: ""
+        val createdAtStr = user["createdAt"] as? String ?: ""
+        val createdAt = LocalDate.parse(createdAtStr.substring(0, 10))
+
+        val repositories = user["repositories"] as? Map<*, *>
+        val repositoryCount = repositories?.get("totalCount") as? Int ?: 0
+
+        val (totalCommits, contributionDays) = extractContributions(user, years)
+
+        return GithubUserData(
+            name = name,
+            bio = bio,
+            avatarUrl = avatarUrl,
+            createdAt = createdAt,
+            repositoryCount = repositoryCount,
+            totalCommits = totalCommits,
+            contributionDays = contributionDays.toMutableList()
+        )
+    }
+
+    private fun parseContributions(response: Map<String, Any>, years: List<Int>): Pair<Int, List<ContributionDay>> {
+        val data = response["data"] as? Map<*, *> ?: return Pair(0, emptyList())
+        val user = data["user"] as? Map<*, *> ?: return Pair(0, emptyList())
+        return extractContributions(user, years)
+    }
+
+    private fun extractContributions(user: Map<*, *>, years: List<Int>): Pair<Int, List<ContributionDay>> {
+        var totalCommits = 0
+        val allDays = mutableListOf<ContributionDay>()
+
+        for (year in years) {
+            val yearData = user["y$year"] as? Map<*, *> ?: continue
+            val commitCount = yearData["totalCommitContributions"] as? Int ?: 0
+            totalCommits += commitCount
+
+            val calendar = yearData["contributionCalendar"] as? Map<*, *> ?: continue
+            val weeks = calendar["weeks"] as? List<*> ?: continue
+
+            for (week in weeks) {
+                val weekMap = week as? Map<*, *> ?: continue
+                val days = weekMap["contributionDays"] as? List<*> ?: continue
+
+                for (day in days) {
+                    val dayMap = day as? Map<*, *> ?: continue
+                    val count = dayMap["contributionCount"] as? Int ?: 0
+                    val dateStr = dayMap["date"] as? String ?: continue
+
+                    allDays.add(ContributionDay(
+                        date = LocalDate.parse(dateStr),
+                        count = count
+                    ))
                 }
-                .header("Authorization", "token ${githubProperties.token}")
-                .retrieve()
-                .bodyToMono(object : ParameterizedTypeReference<List<GithubCommit>>() {})
-                .block() ?: emptyList()
-
-            commits.addAll(response)
-            hasMore = response.size == PER_PAGE
-            page++
+            }
         }
 
-        return commits
+        return Pair(totalCommits, allDays)
     }
 }

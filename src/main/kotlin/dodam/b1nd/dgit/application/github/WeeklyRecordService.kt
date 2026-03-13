@@ -8,8 +8,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 @Service
 @Transactional(readOnly = true)
@@ -32,25 +30,10 @@ class WeeklyRecordService(
                     continue
                 }
 
-                val repositories = githubClient.getUserRepositories(account.username)
-                var weekCommits = 0
-
-                for (repo in repositories) {
-                    val commits = githubClient.getRepositoryCommits(
-                        owner = account.username,
-                        repo = repo.name,
-                        author = account.username,
-                        since = lastWeekStart
-                    )
-
-                    weekCommits += commits.count { commit ->
-                        val commitDate = LocalDateTime.parse(
-                            commit.commit.author.date,
-                            DateTimeFormatter.ISO_DATE_TIME
-                        ).toLocalDate()
-                        commitDate in lastWeekStart..lastWeekEnd
-                    }
-                }
+                val contributionDays = githubClient.fetchContributionsForDateRange(
+                    account.username, lastWeekStart, lastWeekEnd
+                )
+                val weekCommits = contributionDays.sumOf { it.count }
 
                 if (weekCommits > 0) {
                     val record = WeeklyRecord(

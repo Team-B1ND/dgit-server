@@ -24,15 +24,37 @@ class GithubStatsService(
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun updateUserStats(account: GithubAccount) {
-        val userInfo = githubClient.getUser(account.username)
-        account.name = userInfo.name
-        account.bio = userInfo.bio
-        account.avatarUrl = userInfo.avatarUrl
+        val userData = githubClient.fetchUserData(account.username)
+
+        account.name = userData.name
+        account.bio = userData.bio
+        account.avatarUrl = userData.avatarUrl
 
         val stats = githubStatsRepository.findByGithubAccount(account)
             ?: GithubStats(githubAccount = account)
 
-        updateStatsFromGithub(stats, account.username)
+        stats.repositoryCount = userData.repositoryCount
+        stats.totalCommits = userData.totalCommits
+
+        val today = LocalDate.now()
+        stats.todayCommits = userData.contributionDays
+            .firstOrNull { it.date == today }?.count ?: 0
+
+        val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val endOfWeek = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+        stats.weekCommits = userData.contributionDays
+            .filter { it.date in startOfWeek..endOfWeek }
+            .sumOf { it.count }
+
+        val activeDates = userData.contributionDays
+            .filter { it.count > 0 }
+            .map { it.date }
+            .sorted()
+
+        val streaks = calculateStreaks(activeDates)
+        stats.longestStreak = streaks.first
+        stats.currentStreak = streaks.second
+
         githubStatsRepository.save(stats)
     }
 
@@ -42,7 +64,7 @@ class GithubStatsService(
         }
 
         return githubStatsRepository.findByGithubAccount(githubAccount)
-            ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
+            ?: GithubStats(githubAccount = githubAccount)
     }
 
     fun getAccountRanking(githubAccountId: Long): Int {
@@ -51,7 +73,7 @@ class GithubStatsService(
         }
 
         val stats = githubStatsRepository.findByGithubAccount(githubAccount)
-            ?: throw CustomException(ErrorCode.GITHUB_ACCOUNT_NOT_FOUND)
+            ?: return (githubStatsRepository.count() + 1).toInt()
 
         val ranking = githubStatsRepository.countByTotalCommitsGreaterThan(stats.totalCommits)
         return (ranking + 1).toInt()
@@ -62,27 +84,6 @@ class GithubStatsService(
         val totalUsers = githubStatsRepository.count()
         if (totalUsers == 0L) return 0.0
         return (ranking.toDouble() / totalUsers.toDouble()) * 100.0
-    }
-
-    private fun updateStatsFromGithub(stats: GithubStats, username: String) {
-        val repositories = githubClient.getUserRepositories(username)
-        stats.repositoryCount = repositories.size
-
-        val commitData = githubClient.getAllUserCommitDates(username)
-
-        val sortedDates = commitData.commitDates.sorted()
-        stats.totalCommits = commitData.totalCommits
-
-        val today = LocalDate.now()
-        stats.todayCommits = sortedDates.count { it == today }
-
-        val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val endOfWeek = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
-        stats.weekCommits = sortedDates.count { it in startOfWeek..endOfWeek }
-
-        val streaks = calculateStreaks(sortedDates)
-        stats.longestStreak = streaks.first
-        stats.currentStreak = streaks.second
     }
 
     private fun calculateStreaks(commitDates: List<LocalDate>): Pair<Int, Int> {

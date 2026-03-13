@@ -28,13 +28,13 @@ class RepositoryService(
             throw CustomException(ErrorCode.REPOSITORY_ALREADY_EXISTS)
         }
 
-        val userInfo = githubClient.getUser(owner)
+        val avatarUrl = githubClient.fetchUserAvatarUrl(owner)
 
         val repository = Repository(
             githubAccount = githubAccount,
             owner = owner,
             repoName = repoName,
-            ownerAvatarUrl = userInfo.avatarUrl
+            ownerAvatarUrl = avatarUrl
         )
 
         return repositoryRepository.save(repository)
@@ -54,18 +54,12 @@ class RepositoryService(
 
     private fun updateStats(repository: Repository) {
         try {
-            val commits = githubClient.getRepositoryCommits(
+            val (commitCount, starCount) = githubClient.fetchRepositoryStats(
                 owner = repository.owner,
-                repo = repository.repoName,
-                author = repository.owner
+                repoName = repository.repoName
             )
-            repository.totalCommits = commits.size
-
-            val repositories = githubClient.getUserRepositories(repository.owner)
-            val repo = repositories.find { it.name == repository.repoName }
-            if (repo != null) {
-                repository.stars = 0
-            }
+            repository.totalCommits = commitCount
+            repository.stars = starCount
         } catch (_: Exception) {
         }
     }
